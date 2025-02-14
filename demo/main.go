@@ -12,12 +12,13 @@ import (
 )
 
 func main() {
-	// Simple debug message using default logger.
+	// Just use it, as console logger, with no setup.
 	logos.Debug("This is a debug message")
 
-	// Simple info message using default logger with fields and an argument.
+	// Include some key/values pairs.
 	logos.With("key2", "value2").Info("This is an %s message", "info")
 
+	// Break off into sub-loggers.
 	sublog1 := logos.With("sublog", 1)
 	sublog1.Info("This is an %s message with %s", "info", "sublog1")
 
@@ -36,19 +37,21 @@ func main() {
 		}
 	}
 
-	// Customize levels.
+	// Custom levels.
 	const (
 		LevelApple logos.Level = iota
 		LevelBanana
 		LevelCherry
 	)
 
+	// With custom names.
 	logos.LevelNames = map[logos.Level]string{
 		LevelApple:  "apple",
 		LevelBanana: "banana",
 		LevelCherry: "cherry",
 	}
 
+	// And custom console colors.
 	logos.LevelColors = map[logos.Level]logos.Color{
 		LevelApple:  logos.ColorBgGreen + logos.ColorTextBlack,
 		LevelBanana: logos.ColorBgYellow + logos.ColorTextBlack,
@@ -69,8 +72,8 @@ func main() {
 
 	// Customer formatter
 	custom := logos.NewLogger(LevelApple, customFormatter{}, os.Stdout)
-	custom.With("key1", "value1").With("key2", "value2").Log(LevelCherry, "This is a custom message")
-	custom.With("key1", "value1").With("key2", "value2").Log(LevelCherry, "This is a custom message")
+	custom.With("key1", "value1").With("key2", "value2").Log(LevelCherry, "This is a custom message.")
+	custom.With("key1", "value1").With("key2", "value2").Log(LevelCherry, "This is a custom message.")
 }
 
 type customFormatter struct{}
@@ -86,7 +89,9 @@ func (f customFormatter) Format(level logos.Level, msg string, fields map[string
 	// ANSI color codes
 	textColor := logos.LevelColors[level]
 
-	line := fmt.Sprintf("%s\t%s", strings.ToUpper(level.String()), time.Now().UTC().Format(time.ANSIC))
+	line := fmt.Sprintf("%s\t%s",
+		strings.ToUpper(level.String()),
+		time.Now().UTC().Format(time.ANSIC))
 
 	for _, tuple := range tuples {
 		line += fmt.Sprintf("\n\t%s", tuple)
