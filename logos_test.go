@@ -170,6 +170,22 @@ func (m BMap) Field(key string) any {
 	return m["fields"].(map[string]any)[key]
 }
 
+func (m BMap) StringList(key string) []string {
+	field, ok := m[key].([]any)
+	if !ok {
+		return nil
+	}
+
+	var result []string
+	for _, v := range field {
+		if str, ok := v.(string); ok {
+			result = append(result, str)
+		}
+	}
+
+	return result
+}
+
 func Map(buf *bytes.Buffer) BMap {
 	m := make(BMap)
 	_ = json.Unmarshal(buf.Bytes(), &m)

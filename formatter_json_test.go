@@ -1,10 +1,12 @@
 package logos
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/goodblaster/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +14,7 @@ func TestNewJsonFormatter(t *testing.T) {
 	// Default config. Timestamp is close.
 	cfg := DefaultConfig
 	fmtr := NewJsonFormatter(cfg)
-	line := fmtr.Format(LevelInfo, "Test", nil)
+	line := fmtr.Format(LevelInfo, Entry{Msg: "Test"})
 	var m map[string]any //
 	assert.NoError(t, json.Unmarshal([]byte(line), &m))
 	then, err := time.ParseInLocation(DefaultTimestampFormat, m["timestamp"].(string), time.Local)
@@ -27,7 +29,7 @@ func TestNewJsonFormatter(t *testing.T) {
 		},
 	}
 	fmtr = NewJsonFormatter(cfg)
-	line = fmtr.Format(LevelInfo, "Test", nil)
+	line = fmtr.Format(LevelInfo, Entry{Msg: "Test"})
 	assert.NoError(t, json.Unmarshal([]byte(line), &m))
 	assert.Equal(t, static, m["timestamp"])
 
@@ -38,7 +40,7 @@ func TestNewJsonFormatter(t *testing.T) {
 		},
 	}
 	fmtr = NewJsonFormatter(cfg)
-	line = fmtr.Format(LevelInfo, "Test", nil)
+	line = fmtr.Format(LevelInfo, Entry{Msg: "Test"})
 	assert.NoError(t, json.Unmarshal([]byte(line), &m))
 	then, err = time.ParseInLocation(DefaultTimestampFormat, m["timestamp"].(string), time.UTC)
 	assert.NoError(t, err)
@@ -101,7 +103,7 @@ func Test_jsonFormatter_Format(t *testing.T) {
 			f := jsonFormatter{
 				cfg: tt.params.cfg,
 			}
-			got := f.Format(tt.args.level, tt.args.msg, tt.args.fields)
+			got := f.Format(tt.args.level, Entry{Msg: tt.args.msg, Fields: tt.args.fields})
 			var m map[string]any
 			assert.NoError(t, json.Unmarshal([]byte(got), &m))
 			for key, value := range tt.contains {
@@ -110,4 +112,25 @@ func Test_jsonFormatter_Format(t *testing.T) {
 
 		})
 	}
+}
+
+func TestJsonFormatter_ErrorWrapping(t *testing.T) {
+	buf := &bytes.Buffer{}
+	fmtr := NewJsonFormatter(DefaultConfig)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	errMsgs := []string{
+		"high-level error",
+		"wrapped error",
+		"base error",
+	}
+	err := errors.New(errMsgs[2])
+	err = errors.Wrap(err, errMsgs[1])
+	err = errors.Wrap(err, errMsgs[0])
+
+	log.WithError(err).Error("Test")
+	m := Map(buf)
+
+	errList := m.StringList("error")
+	assert.EqualValues(t, errMsgs, errList)
 }
