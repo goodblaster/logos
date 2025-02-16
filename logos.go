@@ -14,6 +14,7 @@ type Logger struct {
 	writer    io.Writer
 	sync      *sync.Mutex
 	fields    Fields
+	error     error
 }
 
 func NewLogger(level Level, formatter Formatter, writer io.Writer) Logger {
@@ -65,7 +66,15 @@ func (logger Logger) WithFields(fields Fields) Logger {
 }
 
 func (logger Logger) WithError(err error) Logger {
-	return logger.With("error", err)
+	newLogger := logger.Copy()
+	if newLogger.error != nil {
+		logger.With("old_error", newLogger.error).
+			With("new_error", err).
+			Error("overwriting old error with new error")
+	}
+
+	newLogger.error = err
+	return newLogger
 }
 
 func (logger Logger) Log(level Level, format string, args ...any) {
@@ -73,7 +82,11 @@ func (logger Logger) Log(level Level, format string, args ...any) {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
-	line := logger.formatter.Format(level, msg, logger.fields)
+	line := logger.formatter.Format(level, Entry{
+		Fields: logger.fields,
+		Msg:    msg,
+		Error:  logger.error,
+	})
 	_, _ = fmt.Fprintln(logger.writer, line)
 }
 
@@ -108,4 +121,10 @@ func (logger Logger) Error(format string, args ...any) {
 func (logger Logger) Fatal(format string, args ...any) {
 	logger.Log(LevelFatal, format, args...)
 	panic(fmt.Sprintf(format, args...))
+}
+
+type Entry struct {
+	Fields Fields
+	Msg    string
+	Error  error
 }

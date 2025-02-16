@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goodblaster/errors"
 	"github.com/goodblaster/logos"
 )
 
@@ -17,6 +18,9 @@ func main() {
 
 	// Include some key/values pairs.
 	logos.With("key2", "value2").Info("This is an %s message", "info")
+
+	// WithError
+	logos.WithError(errors.New("this is an error")).Error("this is a message")
 
 	// Break off into sub-loggers.
 	sublog1 := logos.With("sublog", 1)
@@ -78,9 +82,9 @@ func main() {
 
 type customFormatter struct{}
 
-func (f customFormatter) Format(level logos.Level, msg string, fields map[string]any) string {
+func (f customFormatter) Format(level logos.Level, entry logos.Entry) string {
 	var tuples []string
-	for key, value := range fields {
+	for key, value := range entry.Fields {
 		b, _ := json.Marshal(value)
 		tuples = append(tuples, fmt.Sprintf("%s=%v", key, string(b)))
 	}
@@ -97,7 +101,7 @@ func (f customFormatter) Format(level logos.Level, msg string, fields map[string
 		line += fmt.Sprintf("\n\t%s", tuple)
 	}
 
-	lineMsg := fmt.Sprintf("%s%s%s%s", logos.ColorBgBlack, textColor, msg, logos.ColorReset)
+	lineMsg := fmt.Sprintf("%s%s%s%s", logos.ColorBgBlack, textColor, entry.Msg, logos.ColorReset)
 	line += fmt.Sprintf("\n\t%s\n", lineMsg)
 	return line
 }

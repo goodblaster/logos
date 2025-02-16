@@ -14,13 +14,24 @@ type textFormatter struct {
 func NewTextFormatter(cfg Config) Formatter {
 	return &textFormatter{cfg: cfg}
 }
-func (f textFormatter) Format(level Level, msg string, fields map[string]any) string {
+func (f textFormatter) Format(level Level, entry Entry) string {
 	var tuples []string
-	for key, value := range fields {
+	if entry.Error != nil {
+		errMsg := entry.Error.Error()
+		tuples = append(tuples, fmt.Sprintf("error=%q", string(errMsg)))
+	}
+
+	for key, value := range entry.Fields {
 		b, _ := json.Marshal(value)
 		tuples = append(tuples, fmt.Sprintf("%s=%v", key, string(b)))
 	}
 	slices.Sort(tuples)
 
-	return fmt.Sprintf("%s\t%s\t%s\t%s", f.cfg.Timestamp(), level.String(), strings.Join(tuples, " "), msg)
+	// If there are tuples, add a tab to separate them from the message
+	var tupleString string
+	if len(tuples) > 0 {
+		tupleString = strings.Join(tuples, " ") + "\t"
+	}
+
+	return fmt.Sprintf("%s\t%s\t%s%s", f.cfg.Timestamp(), level.String(), tupleString, entry.Msg)
 }

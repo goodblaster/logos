@@ -5,7 +5,7 @@ import (
 )
 
 type Formatter interface {
-	Format(level Level, msg string, fields map[string]any) string
+	Format(level Level, entry Entry) string
 }
 
 type Config struct {

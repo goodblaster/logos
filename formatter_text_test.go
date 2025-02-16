@@ -16,7 +16,7 @@ func TestNewTextFormatter(t *testing.T) {
 	// Default config. Timestamp is close.
 	cfg = DefaultConfig
 	fmtr = NewTextFormatter(cfg)
-	line := fmtr.Format(LevelInfo, "Test", nil)
+	line := fmtr.Format(LevelInfo, Entry{Msg: "Test"})
 	assert.Equal(t, "info", strings.Fields(line)[1])
 	assert.Equal(t, "Test", strings.Fields(line)[2])
 	then, err := time.ParseInLocation(DefaultTimestampFormat, strings.Fields(line)[0], time.Local)
@@ -31,7 +31,7 @@ func TestNewTextFormatter(t *testing.T) {
 		},
 	}
 	fmtr = NewTextFormatter(cfg)
-	line = fmtr.Format(LevelPrint, "Test", nil)
+	line = fmtr.Format(LevelPrint, Entry{Msg: "Test"})
 	assert.Equal(t, static, strings.Fields(line)[0])
 	assert.Equal(t, "print", strings.Fields(line)[1])
 	assert.Equal(t, "Test", strings.Fields(line)[2])
@@ -43,7 +43,7 @@ func TestNewTextFormatter(t *testing.T) {
 		},
 	}
 	fmtr = NewTextFormatter(cfg)
-	line = fmtr.Format(LevelInfo, "Test", nil)
+	line = fmtr.Format(LevelInfo, Entry{Msg: "Test"})
 	assert.Equal(t, "info", strings.Fields(line)[1])
 	assert.Equal(t, "Test", strings.Fields(line)[2])
 	then, err = time.ParseInLocation(DefaultTimestampFormat, strings.Fields(line)[0], time.UTC)
@@ -51,7 +51,7 @@ func TestNewTextFormatter(t *testing.T) {
 	assert.WithinDuration(t, time.Now().UTC(), then.UTC(), time.Second)
 
 	// With some fields.
-	line = fmtr.Format(LevelInfo, "Test", map[string]any{"key": "value"})
+	line = fmtr.Format(LevelInfo, Entry{Msg: "Test", Fields: map[string]any{"key": "value"}})
 	assert.Equal(t, "info", strings.Fields(line)[1])
 	assert.Equal(t, "key=\"value\"", strings.Fields(line)[2])
 	assert.Equal(t, "Test", strings.Fields(line)[3])
@@ -113,7 +113,7 @@ func Test_textFormatter_Format(t *testing.T) {
 			f := textFormatter{
 				cfg: tt.params.cfg,
 			}
-			got := f.Format(tt.args.level, tt.args.msg, tt.args.fields)
+			got := f.Format(tt.args.level, Entry{Msg: tt.args.msg, Fields: tt.args.fields})
 			fields := strings.Fields(got)
 			for i, c := range tt.contains {
 				if i < len(fields) {
