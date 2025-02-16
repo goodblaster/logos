@@ -170,7 +170,7 @@ func (m BMap) Field(key string) any {
 	return m["fields"].(map[string]any)[key]
 }
 
-func (m BMap) FieldAsStringList(key string) []string {
+func (m BMap) StringList(key string) []string {
 	field, ok := m[key].([]any)
 	if !ok {
 		return nil

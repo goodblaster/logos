@@ -131,6 +131,6 @@ func TestJsonFormatter_ErrorWrapping(t *testing.T) {
 	log.WithError(err).Error("Test")
 	m := Map(buf)
 
-	errList := m.FieldAsStringList("error")
+	errList := m.StringList("error")
 	assert.EqualValues(t, errMsgs, errList)
 }
