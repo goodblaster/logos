@@ -17,27 +17,27 @@ func main() {
 	logos.Debug("This is a debug message")
 
 	// Include some key/values pairs.
-	logos.With("key2", "value2").Info("This is an %s message", "info")
+	logos.With("key2", "value2").Infof("This is an %s message", "info")
 
 	// WithError
 	logos.WithError(errors.New("this is an error")).Error("this is a message")
 
 	// Break off into sub-loggers.
 	sublog1 := logos.With("sublog", 1)
-	sublog1.Info("This is an %s message with %s", "info", "sublog1")
+	sublog1.Infof("This is an %s message with %s", "info", "sublog1")
 
 	sublog2 := sublog1.With("sublog", 2)
-	sublog2.Info("This is an %s message with %s", "info", "sublog2")
+	sublog2.Infof("This is an %s message with %s", "info", "sublog2")
 
-	sublog1.Warn("This is a %s message with %s", "warn", "sublog1")
+	sublog1.Warnf("This is a %s message with %s", "warn", "sublog1")
 
 	// Messages for all levels.
 	for defLevel := logos.LevelDebug; defLevel < logos.LevelFatal; defLevel++ {
 		logos.SetLevel(defLevel)
 		logos.Print("")
-		logos.Print("DEFAULT LEVEL = %s -----", defLevel)
+		logos.Printf("DEFAULT LEVEL = %s -----", defLevel)
 		for level := logos.LevelDebug; level < logos.LevelFatal; level++ {
-			logos.Log(level, "This is a %s message", level)
+			logos.Logf(level, "This is a %s message", level)
 		}
 	}
 
@@ -68,9 +68,9 @@ func main() {
 	for defLevel := LevelApple; defLevel <= LevelCherry; defLevel++ {
 		log.SetLevel(defLevel)
 		log.Print("")
-		log.Print("DEFAULT LEVEL = %s -----", defLevel)
+		log.Printf("DEFAULT LEVEL = %s -----", defLevel)
 		for level := LevelApple; level <= LevelCherry; level++ {
-			log.Log(level, "This is a %s message", level)
+			log.Logf(level, "This is a %s message", level)
 		}
 	}
 
