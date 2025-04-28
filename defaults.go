@@ -28,34 +28,66 @@ func WithFields(fields map[string]any) Logger {
 	return DefaultLogger.WithFields(fields)
 }
 
-func Log(level Level, format string, args ...any) {
-	DefaultLogger.Log(level, format, args...)
+func Log(level Level, a ...any) {
+	DefaultLogger.Log(level, a...)
+}
+
+func Logf(level Level, format string, args ...any) {
+	DefaultLogger.Logf(level, format, args...)
 }
 
 func LogFunc(level Level, msg func() string) {
 	DefaultLogger.LogFunc(level, msg)
 }
 
-func Print(format string, args ...any) {
-	DefaultLogger.Print(format, args...)
+func LogIf(level Level, log func()) {
+	DefaultLogger.LogIf(level, log)
 }
 
-func Debug(format string, args ...any) {
-	DefaultLogger.Debug(format, args...)
+func Print(a ...any) {
+	DefaultLogger.Print(a...)
 }
 
-func Info(format string, args ...any) {
-	DefaultLogger.Info(format, args...)
+func Printf(format string, args ...any) {
+	DefaultLogger.Printf(format, args...)
 }
 
-func Warn(format string, args ...any) {
-	DefaultLogger.Warn(format, args...)
+func Debug(s ...any) {
+	DefaultLogger.Debug(s...)
 }
 
-func Error(format string, args ...any) {
-	DefaultLogger.Error(format, args...)
+func Debugf(format string, args ...any) {
+	DefaultLogger.Debugf(format, args...)
 }
 
-func Fatal(format string, args ...any) {
-	DefaultLogger.Fatal(format, args...)
+func Info(a ...any) {
+	DefaultLogger.Info(a...)
+}
+
+func Infof(format string, args ...any) {
+	DefaultLogger.Infof(format, args...)
+}
+
+func Warn(a ...any) {
+	DefaultLogger.Warn(a...)
+}
+
+func Warnf(format string, args ...any) {
+	DefaultLogger.Warnf(format, args...)
+}
+
+func Error(a ...any) {
+	DefaultLogger.Error(a...)
+}
+
+func Errorf(format string, args ...any) {
+	DefaultLogger.Errorf(format, args...)
+}
+
+func Fatal(a ...any) {
+	DefaultLogger.Fatal(a...)
+}
+
+func Fatalf(format string, args ...any) {
+	DefaultLogger.Fatalf(format, args...)
 }

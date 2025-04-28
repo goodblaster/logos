@@ -77,7 +77,20 @@ func (logger Logger) WithError(err error) Logger {
 	return newLogger
 }
 
-func (logger Logger) Log(level Level, format string, args ...any) {
+func (logger Logger) Log(level Level, a ...any) {
+	if *logger.level > level {
+		return
+	}
+	msg := fmt.Sprint(a...)
+	line := logger.formatter.Format(level, Entry{
+		Fields: logger.fields,
+		Msg:    msg,
+		Error:  logger.error,
+	})
+	_, _ = fmt.Fprintln(logger.writer, line)
+}
+
+func (logger Logger) Logf(level Level, format string, args ...any) {
 	if *logger.level > level {
 		return
 	}
@@ -98,28 +111,60 @@ func (logger Logger) LogFunc(level Level, msg func() string) {
 	logger.Log(level, msg())
 }
 
-func (logger Logger) Print(format string, args ...any) {
-	logger.Log(LevelPrint, format, args...)
+func (logger Logger) LogIf(level Level, log func()) {
+	if *logger.level > level {
+		return
+	}
+	log()
 }
 
-func (logger Logger) Debug(format string, args ...any) {
-	logger.Log(LevelDebug, format, args...)
+func (logger Logger) Print(a ...any) {
+	logger.Log(LevelPrint, a...)
 }
 
-func (logger Logger) Info(format string, args ...any) {
-	logger.Log(LevelInfo, format, args...)
+func (logger Logger) Printf(format string, args ...any) {
+	logger.Logf(LevelPrint, format, args...)
 }
 
-func (logger Logger) Warn(format string, args ...any) {
-	logger.Log(LevelWarn, format, args...)
+func (logger Logger) Debug(a ...any) {
+	logger.Log(LevelDebug, a...)
 }
 
-func (logger Logger) Error(format string, args ...any) {
-	logger.Log(LevelError, format, args...)
+func (logger Logger) Debugf(format string, args ...any) {
+	logger.Logf(LevelDebug, format, args...)
 }
 
-func (logger Logger) Fatal(format string, args ...any) {
-	logger.Log(LevelFatal, format, args...)
+func (logger Logger) Info(a ...any) {
+	logger.Log(LevelInfo, a...)
+}
+
+func (logger Logger) Infof(format string, args ...any) {
+	logger.Logf(LevelInfo, format, args...)
+}
+
+func (logger Logger) Warn(a ...any) {
+	logger.Log(LevelWarn, a...)
+}
+
+func (logger Logger) Warnf(format string, args ...any) {
+	logger.Logf(LevelWarn, format, args...)
+}
+
+func (logger Logger) Error(a ...any) {
+	logger.Log(LevelError, a...)
+}
+
+func (logger Logger) Errorf(format string, args ...any) {
+	logger.Logf(LevelError, format, args...)
+}
+
+func (logger Logger) Fatal(a ...any) {
+	logger.Log(LevelFatal, a...)
+	panic(fmt.Sprint(a...))
+}
+
+func (logger Logger) Fatalf(format string, args ...any) {
+	logger.Logf(LevelFatal, format, args...)
 	panic(fmt.Sprintf(format, args...))
 }
 
