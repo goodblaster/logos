@@ -7,15 +7,17 @@ import (
 	"strings"
 )
 
-// Just like the text formatter, but with colors
+// consoleFormatter is a log formatter that adds ANSI color codes for terminal output.
 type consoleFormatter struct {
 	cfg Config
 }
 
+// NewConsoleFormatter creates a new consoleFormatter using the provided configuration.
 func NewConsoleFormatter(cfg Config) Formatter {
 	return &consoleFormatter{cfg: cfg}
 }
 
+// Format renders the log entry as a colored string using ANSI escape codes for terminal output.
 func (f consoleFormatter) Format(level Level, entry Entry) string {
 	// ANSI color codes
 	textColor := LevelColors[level]

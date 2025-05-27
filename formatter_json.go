@@ -6,14 +6,18 @@ import (
 	"github.com/goodblaster/errors"
 )
 
+// jsonFormatter is a log formatter that outputs logs in JSON format.
 type jsonFormatter struct {
 	cfg Config
 }
 
+// NewJsonFormatter creates a new jsonFormatter using the provided configuration.
 func NewJsonFormatter(cfg Config) Formatter {
 	return &jsonFormatter{cfg: cfg}
 }
 
+// Format renders the log entry as a JSON string.
+// It includes the log level, timestamp, error (if any), fields, and message.
 func (f jsonFormatter) Format(level Level, entry Entry) string {
 	type JsonStruct struct {
 		Level     string         `json:"level"`

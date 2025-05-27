@@ -7,13 +7,18 @@ import (
 	"strings"
 )
 
+// textFormatter formats log entries as plain text without color codes.
 type textFormatter struct {
 	cfg Config
 }
 
+// NewTextFormatter creates a new textFormatter using the provided configuration.
 func NewTextFormatter(cfg Config) Formatter {
 	return &textFormatter{cfg: cfg}
 }
+
+// Format renders the log entry as a plain text string.
+// It includes the timestamp, log level, optional fields, and message.
 func (f textFormatter) Format(level Level, entry Entry) string {
 	var tuples []string
 	if entry.Error != nil {
