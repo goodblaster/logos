@@ -1,13 +1,34 @@
 package logos
 
-import "os"
+import (
+	"os"
+	"strings"
+)
+
 
 // DefaultLogger is the global logger used by package-level log functions.
 var DefaultLogger Logger
 
 // init sets the default logger to output debug-level logs to the console.
 func init() {
-	DefaultLogger = NewLogger(LevelDebug, ConsoleFormatter(), os.Stdout)
+	level := LevelDebug
+	if logLevel := strings.ToLower(os.Getenv("LOG_LEVEL")); logLevel  != "" {
+		if lvl, ok := DefaultLevels[logLevel]; ok {
+			level = lvl
+		}
+	}
+
+	formatter := ConsoleFormatter()
+	switch strings.ToLower(os.Getenv("LOG_FORMAT")) {
+	case "json":
+		formatter = JSONFormatter()
+	case "text":
+		formatter = TextFormatter()
+	case "console":
+		formatter = ConsoleFormatter()
+	}
+
+	DefaultLogger = NewLogger(level, formatter, os.Stdout)
 }
 
 // SetDefaultLogger overrides the global DefaultLogger with a new one.

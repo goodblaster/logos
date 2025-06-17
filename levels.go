@@ -42,6 +42,16 @@ var LevelNames map[Level]string
 // LevelColors maps Level values to ANSI color codes for console output. This can be customized.
 var LevelColors map[Level]Color
 
+// DefaultLevels provides a default mapping for logging level strings to their corresponding Level values.
+var DefaultLevels = map[string]Level{
+	"debug": LevelDebug,
+	"info":  LevelInfo,
+	"warn":  LevelWarn,
+	"error": LevelError,
+	"fatal": LevelFatal,
+	"print": LevelPrint,
+}
+
 // init initializes default level names and associated colors.
 func init() {
 	LevelNames = map[Level]string{
