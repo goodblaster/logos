@@ -1,10 +1,10 @@
 package logos
 
 import (
+	"io"
 	"os"
 	"strings"
 )
-
 
 // DefaultLogger is the global logger used by package-level log functions.
 var DefaultLogger Logger
@@ -12,7 +12,7 @@ var DefaultLogger Logger
 // init sets the default logger to output debug-level logs to the console.
 func init() {
 	level := LevelDebug
-	if logLevel := strings.ToLower(os.Getenv("LOG_LEVEL")); logLevel  != "" {
+	if logLevel := strings.ToLower(os.Getenv("LOG_LEVEL")); logLevel != "" {
 		if lvl, ok := DefaultLevels[logLevel]; ok {
 			level = lvl
 		}
@@ -54,6 +54,11 @@ func WithError(err error) Logger {
 // WithFields returns a copy of the DefaultLogger with additional fields.
 func WithFields(fields map[string]any) Logger {
 	return DefaultLogger.WithFields(fields)
+}
+
+// WithTee returns a copy of the DefaultLogger that writes to both the existing writer and the provided writers.
+func WithTee(writers ...io.Writer) Logger {
+	return DefaultLogger.WithTee(writers...)
 }
 
 // Log logs a message at the specified level using the DefaultLogger.
