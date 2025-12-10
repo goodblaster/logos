@@ -112,16 +112,22 @@ func main() {
 	logos.Print("")
 	logos.Print("TEE LOGGING ----------")
 
-	// Create separate buffers for different outputs
+	// Create separate loggers for different destinations with different levels
 	consoleBuf := &bytes.Buffer{}
 	fileBuf := &bytes.Buffer{}
 
-	// Create a logger that writes to both console and file
-	teeLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout).
-		WithTee(consoleBuf, fileBuf)
+	consoleLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), consoleBuf)
+	fileLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), fileBuf)
 
-	teeLogger.Info("This message goes to stdout, consoleBuf, and fileBuf")
+	// Create a main logger and tee the other loggers to it
+	mainLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout)
+	teeLogger := mainLogger.Tee(consoleLogger, fileLogger)
+
+	teeLogger.Info("This message goes to stdout, consoleBuf (Info), and fileBuf (Debug)")
 	teeLogger.With("component", "auth").Warn("Warning also goes to all destinations")
+
+	// Debug message: only goes to fileBuf (Debug level), not stdout or consoleBuf (Info level)
+	teeLogger.Debug("This debug message only goes to fileBuf")
 
 	// Verify tee logging worked
 	fmt.Printf("\nConsole buffer received: %s\n", consoleBuf.String())
@@ -131,7 +137,8 @@ func main() {
 	logos.Print("")
 	logos.Print("PACKAGE-LEVEL TEE LOGGING ----------")
 	teeBuf := &bytes.Buffer{}
-	teeLog := logos.WithTee(teeBuf)
+	teeBufLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), teeBuf)
+	teeLog := logos.Tee(teeBufLogger)
 	teeLog.Info("This goes to both DefaultLogger's writer and teeBuf")
 }
 

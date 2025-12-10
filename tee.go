@@ -1,22 +1,22 @@
 package logos
 
-import (
-	"io"
-)
-
-// WithTee returns a new Logger that writes to both the existing writer and the provided writers.
-// All writers will receive the same log output.
-func (logger Logger) WithTee(writers ...io.Writer) Logger {
-	if len(writers) == 0 {
+// Tee adds one or more loggers as tee destinations.
+// Each tee logger will receive all log messages and handle its own level checking and formatting.
+// This allows different destinations to have different levels, formatters, and fields.
+func (logger Logger) Tee(loggers ...Logger) Logger {
+	if len(loggers) == 0 {
 		return logger
 	}
 
-	// Combine existing writer with new writers
-	allWriters := make([]io.Writer, 0, len(writers)+1)
-	allWriters = append(allWriters, logger.writer)
-	allWriters = append(allWriters, writers...)
-
 	newLogger := logger.Copy()
-	newLogger.writer = io.MultiWriter(allWriters...)
+	if newLogger.teeLoggers == nil {
+		newLogger.teeLoggers = make([]Logger, 0, len(loggers))
+	}
+
+	// Copy each tee logger to avoid shared state
+	for _, teeLogger := range loggers {
+		newLogger.teeLoggers = append(newLogger.teeLoggers, teeLogger.Copy())
+	}
+
 	return newLogger
 }

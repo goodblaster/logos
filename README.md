@@ -138,26 +138,64 @@ logger.Info("Using default logger")
 ```
 
 ## Tee Logging
-Write logs to multiple destinations simultaneously. Useful for logging to both console and file, or multiple files with different formats:
+Write logs to multiple destinations simultaneously, each with its own level, formatter, and fields. This is the recommended approach for flexible multi-destination logging:
 
 ```go
-// Create a logger that writes to both stdout and a file
-file, _ := os.Create("app.log")
-teeLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout).
-    WithTee(file)
+// Create separate loggers for different destinations
+debugFile, _ := os.Create("debug.log")
+infoFile, _ := os.Create("info.log")
 
-teeLogger.Info("This message goes to both stdout and the file")
+debugLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), debugFile)
+infoLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), infoFile)
 
-// Tee to multiple destinations
-consoleBuf := &bytes.Buffer{}
-fileBuf := &bytes.Buffer{}
-teeLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout).
-    WithTee(consoleBuf, fileBuf)
+// Tee the loggers together
+mainLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout)
+teeLogger := mainLogger.Tee(debugLogger, infoLogger)
 
-// Package-level tee logging
-teeLogger := logos.WithTee(file1, file2)
-teeLogger.Info("Message goes to DefaultLogger's writer plus file1 and file2")
+// Info message: goes to mainLogger (Info), infoLogger (Info), and debugLogger (Debug accepts Info)
+teeLogger.Info("This goes to all three")
+
+// Debug message: only goes to debugLogger (mainLogger and infoLogger filter it)
+teeLogger.Debug("This only goes to debug.log")
+
+// Each logger can have different formatters
+jsonLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), jsonFile)
+consoleLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stderr)
+teeLogger = mainLogger.Tee(jsonLogger, consoleLogger)
 ```
+
+### Different Levels Per Destination
+Each tee logger can have its own level, allowing you to capture more detailed logs in some destinations:
+
+```go
+// Main logger at Info, but debug file captures Debug level
+mainLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout)
+debugLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), debugFile)
+
+teeLogger := mainLogger.Tee(debugLogger)
+teeLogger.Info("Info message")  // Goes to both
+teeLogger.Debug("Debug message") // Only goes to debugLogger
+```
+
+### Different Formatters Per Destination
+Each logger can format independently:
+
+```go
+// Console gets colorized output, file gets JSON
+consoleLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout)
+fileLogger := logos.NewLogger(logos.LevelInfo, logos.JSONFormatter(), logFile)
+
+teeLogger := consoleLogger.Tee(fileLogger)
+teeLogger.Info("Same message, different formats")
+```
+
+### Package-Level Tee Logging
+```go
+debugLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), debugFile)
+teeLogger := logos.Tee(debugLogger)
+teeLogger.Info("Message goes to DefaultLogger plus debugLogger")
+```
+
 
 ## Default Log Levels
 - `LevelDebug`

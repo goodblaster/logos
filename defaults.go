@@ -1,7 +1,6 @@
 package logos
 
 import (
-	"io"
 	"os"
 	"strings"
 )
@@ -56,9 +55,9 @@ func WithFields(fields map[string]any) Logger {
 	return DefaultLogger.WithFields(fields)
 }
 
-// WithTee returns a copy of the DefaultLogger that writes to both the existing writer and the provided writers.
-func WithTee(writers ...io.Writer) Logger {
-	return DefaultLogger.WithTee(writers...)
+// Tee adds one or more loggers as tee destinations to the DefaultLogger.
+func Tee(loggers ...Logger) Logger {
+	return DefaultLogger.Tee(loggers...)
 }
 
 // Log logs a message at the specified level using the DefaultLogger.
