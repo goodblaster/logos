@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -84,6 +85,29 @@ func main() {
 	// Custom formatter demo.
 	custom := logos.NewLogger(LevelApple, customFormatter{}, os.Stdout)
 	custom.With("key1", "value1").With("key2", "value2").Log(LevelCherry, "This is a custom message.")
+
+	// Context logging demo.
+	logos.Print("")
+	logos.Print("CONTEXT LOGGING ----------")
+
+	// Create a logger with some fields
+	requestLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout).
+		With("request_id", "req-123").
+		With("user_id", "user-456")
+
+	// Store logger in context
+	ctx := logos.WithLogger(context.Background(), requestLogger)
+
+	// In another function, retrieve logger from context
+	func(ctx context.Context) {
+		logger := logos.FromContext(ctx)
+		logger.Info("Processing request")
+		logger.With("action", "validate").Info("Validating input")
+	}(ctx)
+
+	// If no logger in context, returns DefaultLogger
+	emptyCtx := context.Background()
+	logos.FromContext(emptyCtx).Info("Using default logger")
 }
 
 func expensiveOperation() string {
