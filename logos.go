@@ -32,8 +32,50 @@ func NewLogger(level Level, formatter Formatter, writer io.Writer) Logger {
 }
 
 // SetLevel sets the logging level of the logger.
+// Deprecated: Use WithLevel() instead for immutable logger creation.
 func (logger Logger) SetLevel(level Level) {
 	*logger.level = level
+}
+
+// GetLevel returns the current logging level.
+func (logger Logger) GetLevel() Level {
+	if logger.level == nil {
+		return LevelInfo // Safe default
+	}
+	return *logger.level
+}
+
+// GetFields returns a copy of the logger's fields.
+// The returned map is independent and modifications won't affect the logger.
+func (logger Logger) GetFields() Fields {
+	if logger.fields == nil {
+		return nil
+	}
+	fieldsCopy := make(Fields, len(logger.fields))
+	for k, v := range logger.fields {
+		fieldsCopy[k] = v
+	}
+	return fieldsCopy
+}
+
+// GetError returns the logger's associated error.
+func (logger Logger) GetError() error {
+	return logger.error
+}
+
+// GetTeeCount returns the number of tee loggers attached to this logger.
+func (logger Logger) GetTeeCount() int {
+	return len(logger.teeLoggers)
+}
+
+// WithLevel returns a new Logger with the specified logging level.
+// Unlike SetLevel(), this method returns a new logger instance with an independent level,
+// maintaining immutability and preventing shared state issues.
+func (logger Logger) WithLevel(level Level) Logger {
+	newLogger := logger.Copy()
+	newLevel := level
+	newLogger.level = &newLevel // New pointer, not shared
+	return newLogger
 }
 
 // Copy creates a deep copy of the logger, duplicating any fields and tee loggers.
@@ -95,6 +137,11 @@ func (logger Logger) WithError(err error) Logger {
 
 // Log logs a message at the specified level.
 func (logger Logger) Log(level Level, a ...any) {
+	// Defensive nil checks
+	if logger.level == nil || logger.formatter == nil || logger.writer == nil {
+		return
+	}
+
 	msg := fmt.Sprint(a...)
 	entry := Entry{
 		Fields: logger.fields,
@@ -105,7 +152,10 @@ func (logger Logger) Log(level Level, a ...any) {
 	// Write to main writer if level is enabled
 	if *logger.level <= level {
 		line := logger.formatter.Format(level, entry)
+		// Lock to prevent concurrent writes to the same writer (e.g., bytes.Buffer)
+		logger.sync.Lock()
 		_, _ = fmt.Fprintln(logger.writer, line)
+		logger.sync.Unlock()
 	}
 
 	// Always call Log on each tee logger (they handle their own level checking and formatting)
@@ -116,6 +166,11 @@ func (logger Logger) Log(level Level, a ...any) {
 
 // Logf logs a formatted message at the specified level.
 func (logger Logger) Logf(level Level, format string, args ...any) {
+	// Defensive nil checks
+	if logger.level == nil || logger.formatter == nil || logger.writer == nil {
+		return
+	}
+
 	msg := fmt.Sprintf(format, args...)
 	entry := Entry{
 		Fields: logger.fields,
@@ -126,7 +181,10 @@ func (logger Logger) Logf(level Level, format string, args ...any) {
 	// Write to main writer if level is enabled
 	if *logger.level <= level {
 		line := logger.formatter.Format(level, entry)
+		// Lock to prevent concurrent writes to the same writer (e.g., bytes.Buffer)
+		logger.sync.Lock()
 		_, _ = fmt.Fprintln(logger.writer, line)
+		logger.sync.Unlock()
 	}
 
 	// Always call Logf on each tee logger (they handle their own level checking and formatting)
@@ -137,11 +195,17 @@ func (logger Logger) Logf(level Level, format string, args ...any) {
 
 // LogFunc evaluates the message-producing function only if at least one logger (main or tee) has the level enabled.
 func (logger Logger) LogFunc(level Level, msg func() string) {
+	// Defensive nil check
+	if logger.level == nil {
+		return
+	}
+
 	// Check if main logger or any tee logger would accept this level
 	shouldLog := *logger.level <= level
 	if !shouldLog {
 		for _, teeLogger := range logger.teeLoggers {
-			if *teeLogger.level <= level {
+			// Nil check for tee logger level
+			if teeLogger.level != nil && *teeLogger.level <= level {
 				shouldLog = true
 				break
 			}
@@ -157,11 +221,17 @@ func (logger Logger) LogFunc(level Level, msg func() string) {
 
 // LogIf calls the provided function if at least one logger (main or tee) has the level enabled.
 func (logger Logger) LogIf(level Level, log func()) {
+	// Defensive nil check
+	if logger.level == nil {
+		return
+	}
+
 	// Check if main logger or any tee logger would accept this level
 	shouldLog := *logger.level <= level
 	if !shouldLog {
 		for _, teeLogger := range logger.teeLoggers {
-			if *teeLogger.level <= level {
+			// Nil check for tee logger level
+			if teeLogger.level != nil && *teeLogger.level <= level {
 				shouldLog = true
 				break
 			}

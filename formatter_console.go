@@ -19,8 +19,8 @@ func NewConsoleFormatter(cfg Config) Formatter {
 
 // Format renders the log entry as a colored string using ANSI escape codes for terminal output.
 func (f consoleFormatter) Format(level Level, entry Entry) string {
-	// ANSI color codes
-	textColor := LevelColors[level]
+	// ANSI color codes - use config with fallback to globals
+	textColor := GetLevelColor(level, &f.cfg)
 
 	var tuples []string
 	if entry.Error != nil {
@@ -29,8 +29,13 @@ func (f consoleFormatter) Format(level Level, entry Entry) string {
 	}
 
 	for key, value := range entry.Fields {
-		b, _ := json.Marshal(value)
-		tuples = append(tuples, fmt.Sprintf("%s=%v", key, string(b)))
+		b, err := json.Marshal(value)
+		if err != nil {
+			// If marshal fails, include an error indicator instead of silently failing
+			tuples = append(tuples, fmt.Sprintf("%s=<marshal_error>", key))
+		} else {
+			tuples = append(tuples, fmt.Sprintf("%s=%v", key, string(b)))
+		}
 	}
 	slices.Sort(tuples)
 
@@ -42,7 +47,7 @@ func (f consoleFormatter) Format(level Level, entry Entry) string {
 
 	return fmt.Sprintf("%s\t%s%s%s\t%s%s",
 		f.cfg.Timestamp(),
-		textColor, level.String(), ColorReset,
+		textColor, GetLevelName(level, &f.cfg), ColorReset,
 		tupleString,
 		entry.Msg)
 }

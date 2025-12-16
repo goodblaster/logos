@@ -72,3 +72,45 @@ func init() {
 		LevelPrint: ColorReset,
 	}
 }
+
+// GetLevelName returns the name for a level, using the Config's LevelNames if present,
+// otherwise falling back to the global LevelNames map.
+func GetLevelName(level Level, cfg *Config) string {
+	// Try config first
+	if cfg != nil && cfg.LevelNames != nil {
+		if name, ok := cfg.LevelNames[level]; ok {
+			return name
+		}
+	}
+
+	// Fall back to global
+	if name, ok := LevelNames[level]; ok {
+		return name
+	}
+
+	// Default for LevelPrint
+	if level == LevelPrint {
+		return "print"
+	}
+
+	return "unknown"
+}
+
+// GetLevelColor returns the color for a level, using the Config's LevelColors if present,
+// otherwise falling back to the global LevelColors map.
+func GetLevelColor(level Level, cfg *Config) Color {
+	// Try config first
+	if cfg != nil && cfg.LevelColors != nil {
+		if color, ok := cfg.LevelColors[level]; ok {
+			return color
+		}
+	}
+
+	// Fall back to global
+	if color, ok := LevelColors[level]; ok {
+		return color
+	}
+
+	// Default to reset color if not found
+	return ColorReset
+}
