@@ -97,20 +97,17 @@ func TestLogos_CustomLevels(t *testing.T) {
 		LevelCherry
 	)
 
-	oldLevels := map[Level]string{}
-	for level, name := range LevelNames {
-		oldLevels[level] = name
-	}
+	// Set custom level names using thread-safe functions
+	SetLevelName(LevelApple, "apple")
+	SetLevelName(LevelBanana, "banana")
+	SetLevelName(LevelCherry, "cherry")
 
+	// Clean up after test
 	defer func() {
-		LevelNames = oldLevels
+		SetLevelName(LevelApple, "")
+		SetLevelName(LevelBanana, "")
+		SetLevelName(LevelCherry, "")
 	}()
-
-	LevelNames = map[Level]string{
-		LevelApple:  "apple",
-		LevelBanana: "banana",
-		LevelCherry: "cherry",
-	}
 
 	log.Log(LevelApple, "apple")
 	assert.Equal(t, "apple", Map(buf)["level"])
@@ -311,6 +308,117 @@ func TestLogger_NilFormatter(t *testing.T) {
 	assert.NotPanics(t, func() {
 		log.Debug("test")
 	})
+}
+
+func TestLogger_IsLevelEnabled(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewLogger(LevelInfo, JSONFormatter(), buf)
+
+	// Debug should not be enabled when logger is at Info level
+	assert.False(t, log.IsLevelEnabled(LevelDebug))
+
+	// Info and higher should be enabled
+	assert.True(t, log.IsLevelEnabled(LevelInfo))
+	assert.True(t, log.IsLevelEnabled(LevelWarn))
+	assert.True(t, log.IsLevelEnabled(LevelError))
+	assert.True(t, log.IsLevelEnabled(LevelFatal))
+	assert.True(t, log.IsLevelEnabled(LevelPrint))
+
+	// Change to Error level
+	log2 := log.WithLevel(LevelError)
+
+	// Debug, Info, Warn should not be enabled
+	assert.False(t, log2.IsLevelEnabled(LevelDebug))
+	assert.False(t, log2.IsLevelEnabled(LevelInfo))
+	assert.False(t, log2.IsLevelEnabled(LevelWarn))
+
+	// Error and higher should be enabled
+	assert.True(t, log2.IsLevelEnabled(LevelError))
+	assert.True(t, log2.IsLevelEnabled(LevelFatal))
+	assert.True(t, log2.IsLevelEnabled(LevelPrint))
+
+	// Test nil level logger
+	nilLog := Logger{
+		level:     nil,
+		formatter: JSONFormatter(),
+		writer:    buf,
+	}
+	assert.False(t, nilLog.IsLevelEnabled(LevelInfo))
+}
+
+func TestPackageLevel_IsLevelEnabled(t *testing.T) {
+	buf := &bytes.Buffer{}
+	SetDefaultLogger(NewLogger(LevelWarn, JSONFormatter(), buf))
+
+	// Debug and Info should not be enabled
+	assert.False(t, IsLevelEnabled(LevelDebug))
+	assert.False(t, IsLevelEnabled(LevelInfo))
+
+	// Warn and higher should be enabled
+	assert.True(t, IsLevelEnabled(LevelWarn))
+	assert.True(t, IsLevelEnabled(LevelError))
+	assert.True(t, IsLevelEnabled(LevelFatal))
+	assert.True(t, IsLevelEnabled(LevelPrint))
+}
+
+func TestLogger_WithErrorHandler(t *testing.T) {
+	// Create a writer that always errors
+	errWriter := &errorWriter{err: assert.AnError}
+	log := NewLogger(LevelInfo, JSONFormatter(), errWriter)
+
+	// Track if error handler was called
+	var handlerCalled bool
+	var capturedErr error
+
+	log = log.WithErrorHandler(func(err error) {
+		handlerCalled = true
+		capturedErr = err
+	})
+
+	// Log a message - should trigger error handler
+	log.Info("test message")
+
+	// Verify error handler was called with the correct error
+	assert.True(t, handlerCalled, "Error handler should have been called")
+	assert.Equal(t, assert.AnError, capturedErr, "Error handler should receive the write error")
+}
+
+func TestLogger_WithErrorHandler_NoHandler(t *testing.T) {
+	// Create a writer that always errors
+	errWriter := &errorWriter{err: assert.AnError}
+	log := NewLogger(LevelInfo, JSONFormatter(), errWriter)
+
+	// Log without error handler - should not panic
+	assert.NotPanics(t, func() {
+		log.Info("test message")
+	})
+}
+
+func TestLogger_WithErrorHandler_LevelFiltered(t *testing.T) {
+	// Create a writer that always errors
+	errWriter := &errorWriter{err: assert.AnError}
+	log := NewLogger(LevelError, JSONFormatter(), errWriter)
+
+	// Track if error handler was called
+	var handlerCalled bool
+
+	log = log.WithErrorHandler(func(err error) {
+		handlerCalled = true
+	})
+
+	// Log at debug level - should be filtered, error handler should NOT be called
+	log.Debug("test message")
+
+	assert.False(t, handlerCalled, "Error handler should not be called for filtered messages")
+}
+
+// errorWriter is a test writer that always returns an error
+type errorWriter struct {
+	err error
+}
+
+func (w *errorWriter) Write(p []byte) (n int, err error) {
+	return 0, w.err
 }
 
 // Helper function to create a pointer to a Level

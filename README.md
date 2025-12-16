@@ -49,14 +49,17 @@ LOG_LEVEL=info LOG_FORMAT=json ./myapp
 ```
 
 ## Features
-- Easily adjustable log levels
+- Easily adjustable log levels with filtering
 - Structured field and error logging
 - Multiple built-in formatters (Text, JSON, Console)
 - Global and per-instance logging
-- Context-aware logging
+- Context-aware logging for request-scoped loggers
 - Tee logging (write to multiple destinations)
-- Simple customization of level names and colors
+- Custom log levels with names and colors
 - Lazy evaluation and conditional logging
+- Error handlers for write failures
+- Thread-safe for concurrent use
+- Immutable logger pattern (copy-on-write)
 
 ## Custom Log Levels
 Unlike many logging packages, Logos allows you to rename or define your own log levels easily:
@@ -68,17 +71,15 @@ const (
     LevelCherry
 )
 
-logos.LevelNames = map[logos.Level]string{
-    LevelApple:  "apple",
-    LevelBanana: "banana",
-    LevelCherry: "cherry",
-}
+// Register custom level names (thread-safe)
+logos.SetLevelName(LevelApple, "apple")
+logos.SetLevelName(LevelBanana, "banana")
+logos.SetLevelName(LevelCherry, "cherry")
 
-logos.LevelColors = map[logos.Level]logos.Color{
-    LevelApple:  logos.ColorTextGreen,
-    LevelBanana: logos.ColorTextYellow,
-    LevelCherry: logos.ColorTextRed,
-}
+// Register custom colors for console formatter
+logos.SetLevelColor(LevelApple, logos.ColorTextGreen)
+logos.SetLevelColor(LevelBanana, logos.ColorTextYellow)
+logos.SetLevelColor(LevelCherry, logos.ColorTextRed)
 
 log := logos.NewLogger(LevelApple, logos.ConsoleFormatter(), os.Stdout)
 log.Log(LevelApple, "apple log")
@@ -104,12 +105,47 @@ You can choose how logs are rendered:
 
 ## Conditional and Lazy Logging
 ```go
+// LogFunc: evaluates function only if level is enabled
 log.LogFunc(logos.LevelDebug, func() string {
     return expensiveComputation()
 })
 
+// LogIf: executes function only if level is enabled
 log.LogIf(logos.LevelInfo, func() {
     fmt.Println("This block runs only if info level is enabled")
+})
+
+// IsLevelEnabled: check if a level is enabled before expensive operations
+if log.IsLevelEnabled(logos.LevelDebug) {
+    // Do expensive debug formatting
+    log.Debugf("Complex data: %+v", generateComplexDebugInfo())
+}
+```
+
+## Changing Log Levels
+Loggers are immutable, so changing the level returns a new logger:
+
+```go
+log := logos.NewLogger(logos.LevelDebug, logos.ConsoleFormatter(), os.Stdout)
+log.Debug("This will show")
+
+// Create new logger with different level
+log = log.WithLevel(logos.LevelError)
+log.Debug("This won't show")
+log.Error("This will show")
+```
+
+## Error Handling
+Handle errors that occur during logging with WithError and WithErrorHandler:
+
+```go
+// Attach errors to log entries
+err := errors.New("database timeout")
+log.WithError(err).Error("Failed to connect")
+
+// Handle write errors with an error handler
+log = log.WithErrorHandler(func(writeErr error) {
+    fmt.Fprintf(os.Stderr, "Log write failed: %v\n", writeErr)
 })
 ```
 
@@ -196,6 +232,21 @@ teeLogger := logos.Tee(debugLogger)
 teeLogger.Info("Message goes to DefaultLogger plus debugLogger")
 ```
 
+## Examples and Demos
+
+The `demos/` directory contains comprehensive examples of all features:
+
+- **[master](./demos/master/)** - Start here! Shows the most commonly used features
+- Individual demos for each feature (basic logging, fields, levels, formatters, context, tee, errors, etc.)
+- **[comprehensive_demo](./demos/comprehensive_demo/)** - Advanced examples including custom levels and formatters
+
+Run any demo with:
+```bash
+cd demos/master
+go run main.go
+```
+
+See [demos/README.md](./demos/README.md) for the full list.
 
 ## Default Log Levels
 - `LevelDebug`

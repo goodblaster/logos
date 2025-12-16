@@ -2,6 +2,7 @@ package logos
 
 import (
 	"math"
+	"sync"
 )
 
 // Level represents the severity of a log message.
@@ -9,7 +10,11 @@ type Level int
 
 // String returns the string representation of a logging level.
 func (level Level) String() string {
-	if name, ok := LevelNames[level]; ok {
+	levelMu.RLock()
+	name, ok := LevelNames[level]
+	levelMu.RUnlock()
+
+	if ok {
 		return name
 	}
 
@@ -37,10 +42,15 @@ const (
 )
 
 // LevelNames maps Level values to human-readable strings. This can be overridden by the user.
+// Access is protected by levelMu for thread safety.
 var LevelNames map[Level]string
 
 // LevelColors maps Level values to ANSI color codes for console output. This can be customized.
+// Access is protected by levelMu for thread safety.
 var LevelColors map[Level]Color
+
+// levelMu protects concurrent access to LevelNames and LevelColors.
+var levelMu sync.RWMutex
 
 // DefaultLevels provides a default mapping for logging level strings to their corresponding Level values.
 var DefaultLevels = map[string]Level{
@@ -74,7 +84,7 @@ func init() {
 }
 
 // GetLevelName returns the name for a level, using the Config's LevelNames if present,
-// otherwise falling back to the global LevelNames map.
+// otherwise falling back to the global LevelNames map (with thread-safe access).
 func GetLevelName(level Level, cfg *Config) string {
 	// Try config first
 	if cfg != nil && cfg.LevelNames != nil {
@@ -83,8 +93,12 @@ func GetLevelName(level Level, cfg *Config) string {
 		}
 	}
 
-	// Fall back to global
-	if name, ok := LevelNames[level]; ok {
+	// Fall back to global with read lock
+	levelMu.RLock()
+	name, ok := LevelNames[level]
+	levelMu.RUnlock()
+
+	if ok {
 		return name
 	}
 
@@ -97,7 +111,7 @@ func GetLevelName(level Level, cfg *Config) string {
 }
 
 // GetLevelColor returns the color for a level, using the Config's LevelColors if present,
-// otherwise falling back to the global LevelColors map.
+// otherwise falling back to the global LevelColors map (with thread-safe access).
 func GetLevelColor(level Level, cfg *Config) Color {
 	// Try config first
 	if cfg != nil && cfg.LevelColors != nil {
@@ -106,11 +120,31 @@ func GetLevelColor(level Level, cfg *Config) Color {
 		}
 	}
 
-	// Fall back to global
-	if color, ok := LevelColors[level]; ok {
+	// Fall back to global with read lock
+	levelMu.RLock()
+	color, ok := LevelColors[level]
+	levelMu.RUnlock()
+
+	if ok {
 		return color
 	}
 
 	// Default to reset color if not found
 	return ColorReset
+}
+
+// SetLevelName sets a custom name for a level in the global LevelNames map.
+// This function is thread-safe.
+func SetLevelName(level Level, name string) {
+	levelMu.Lock()
+	defer levelMu.Unlock()
+	LevelNames[level] = name
+}
+
+// SetLevelColor sets a custom color for a level in the global LevelColors map.
+// This function is thread-safe.
+func SetLevelColor(level Level, color Color) {
+	levelMu.Lock()
+	defer levelMu.Unlock()
+	LevelColors[level] = color
 }

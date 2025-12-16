@@ -55,6 +55,11 @@ func SetLevel(level Level) {
 	defaultLogger.SetLevel(level)
 }
 
+// IsLevelEnabled returns true if the default logger would log at the given level.
+func IsLevelEnabled(level Level) bool {
+	return getDefaultLogger().IsLevelEnabled(level)
+}
+
 // With returns a copy of the default logger with an additional field.
 func With(key string, value any) Logger {
 	return getDefaultLogger().With(key, value)

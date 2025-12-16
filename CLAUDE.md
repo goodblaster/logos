@@ -16,6 +16,9 @@ go test ./...
 # Run tests with verbose output
 go test -v ./...
 
+# Run tests with race detector (recommended)
+go test -race ./...
+
 # Run a specific test
 go test -v -run TestName
 
@@ -23,13 +26,31 @@ go test -v -run TestName
 go test -v formatter_json_test.go formatter_json.go formatter.go levels.go colors.go formats.go
 ```
 
+### Benchmarking
+```bash
+# Run all benchmarks
+go test -bench=. -benchmem
+
+# Run specific benchmark
+go test -bench=BenchmarkBasicLogging -benchmem
+
+# Run benchmarks with longer time
+go test -bench=. -benchmem -benchtime=10s
+```
+
 ### Building
 ```bash
 # Build the package
 go build ./...
 
-# Run the demo
-go run demo/main.go
+# Run the master demo (most common use cases)
+go run demos/master/main.go
+
+# Run a specific demo
+go run demos/01_basic/main.go
+
+# Run the comprehensive demo (all features)
+go run demos/comprehensive_demo/main.go
 ```
 
 ### Dependencies
@@ -47,14 +68,20 @@ go mod tidy
 
 **Logger (`logos.go`)**
 - The main `Logger` struct is immutable through copy-on-write semantics
-- Each method that modifies state (`With`, `WithFields`, `WithError`) returns a new logger
-- Thread-safe through mutex-protected operations
+- Each method that modifies state (`With`, `WithFields`, `WithError`, `WithLevel`, `WithErrorHandler`) returns a new logger
+- Thread-safe through mutex-protected operations (mutex is shared across copies for writer synchronization)
 - Supports both instance-based and package-level logging via `DefaultLogger`
+- Key methods:
+  - `IsLevelEnabled(level)` - Check if a level is enabled without logging
+  - `WithLevel(level)` - Return new logger with different level (preferred over deprecated `SetLevel`)
+  - `WithErrorHandler(func(error))` - Attach handler for write errors
+  - `Copy()` - Create deep copy with independent level but shared mutex/writer
 
 **Level System (`levels.go`)**
 - Levels are simple `int` constants, allowing custom levels beyond the defaults
 - Default levels: Debug (-1), Info (0), Warn (1), Error (2), Fatal (3), Print (MaxInt)
-- `LevelNames` and `LevelColors` are global maps that can be overridden for custom level schemes
+- `LevelNames` and `LevelColors` are global maps protected by RWMutex for thread-safe access
+- Use `SetLevelName(level, name)` and `SetLevelColor(level, color)` for thread-safe registration
 - Level filtering: a logger with level X will log messages at level X and higher
 
 **Formatters (`formatter.go`, `formatter_*.go`)**
@@ -127,14 +154,17 @@ log.Info("message")
 
 - **Fatal logs panic**: The `Fatal()` and `Fatalf()` methods log the message and then call `panic()`
 - **Print level always prints**: `LevelPrint` is set to `math.MaxInt` so it bypasses all filtering
-- **Error overwriting**: `WithError()` will warn if replacing an existing error
 - **Tee propagation**: When calling `With()` on a logger with tees, fields are added to the main logger only, not to tee destinations
-- **Custom levels**: Users can define their own levels and update `LevelNames` and `LevelColors` maps
-- **Timestamp customization**: Formatters accept a `Config` with a custom `Timestamp func() string`
+- **Custom levels**: Users can define their own levels using `SetLevelName()` and `SetLevelColor()` (thread-safe)
+- **Timestamp customization**: Formatters accept a `Config` with a custom `Timestamp func() string` and optional level name/color overrides
+- **Immutable pattern**: Use `WithLevel()` instead of deprecated `SetLevel()` to maintain immutability
+- **Error handling**: `WithErrorHandler()` allows handling of write errors without breaking the logging flow
 - **Thread-safety**:
-  - Logger writes are protected by per-logger mutex (safe for concurrent logging to same writer)
+  - Logger writes are protected by shared mutex across copies (safe for concurrent logging to same writer)
   - Default logger access is protected by RWMutex (safe for concurrent reads, exclusive writes)
-  - Each logger instance has its own mutex, preventing deadlocks
+  - Global `LevelNames` and `LevelColors` are protected by RWMutex
+  - Loggers created with `With()`, `WithFields()`, etc. share the same mutex as their parent for writer synchronization
+  - All package-level functions (`Info()`, `Debug()`, etc.) are thread-safe
 
 ## Dependencies
 
