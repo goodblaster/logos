@@ -10,9 +10,12 @@ type Formatter interface {
 	Format(level Level, entry Entry) string
 }
 
-// Config defines the configuration for a Formatter, such as a custom timestamp function.
+// Config defines the configuration for a Formatter, such as a custom timestamp function,
+// level names, and colors. If LevelNames or LevelColors are nil, the global defaults will be used.
 type Config struct {
-	Timestamp func() string
+	Timestamp   func() string
+	LevelNames  map[Level]string // Optional: custom level names. Falls back to global LevelNames if nil.
+	LevelColors map[Level]Color  // Optional: custom level colors. Falls back to global LevelColors if nil.
 }
 
 // DefaultConfig is the fallback configuration using the DefaultTimestamp function.

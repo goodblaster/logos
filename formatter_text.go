@@ -27,8 +27,13 @@ func (f textFormatter) Format(level Level, entry Entry) string {
 	}
 
 	for key, value := range entry.Fields {
-		b, _ := json.Marshal(value)
-		tuples = append(tuples, fmt.Sprintf("%s=%v", key, string(b)))
+		b, err := json.Marshal(value)
+		if err != nil {
+			// If marshal fails, include an error indicator instead of silently failing
+			tuples = append(tuples, fmt.Sprintf("%s=<marshal_error>", key))
+		} else {
+			tuples = append(tuples, fmt.Sprintf("%s=%v", key, string(b)))
+		}
 	}
 	slices.Sort(tuples)
 
@@ -38,5 +43,5 @@ func (f textFormatter) Format(level Level, entry Entry) string {
 		tupleString = strings.Join(tuples, " ") + "\t"
 	}
 
-	return fmt.Sprintf("%s\t%s\t%s%s", f.cfg.Timestamp(), level.String(), tupleString, entry.Msg)
+	return fmt.Sprintf("%s\t%s\t%s%s", f.cfg.Timestamp(), GetLevelName(level, &f.cfg), tupleString, entry.Msg)
 }

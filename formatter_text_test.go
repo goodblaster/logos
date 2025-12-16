@@ -1,6 +1,7 @@
 package logos
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -124,4 +125,46 @@ func Test_textFormatter_Format(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTextFormatter_MarshalError(t *testing.T) {
+	buf := &bytes.Buffer{}
+	fmtr := NewTextFormatter(DefaultConfig)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	// Create a circular reference that will cause marshal errors
+	type circular struct {
+		Self *circular
+	}
+	circ := &circular{}
+	circ.Self = circ
+
+	// This should not panic, but should include marshal_error indicator
+	log.With("circular", circ).Info("test message")
+
+	output := buf.String()
+	assert.Contains(t, output, "circular=<marshal_error>", "Should indicate marshal error")
+	assert.Contains(t, output, "test message", "Should still include the message")
+}
+
+func TestTextFormatter_CustomConfig(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	customLevelNames := map[Level]string{
+		LevelDebug: "TRACE",
+		LevelInfo:  "INFO",
+	}
+
+	cfg := Config{
+		Timestamp:  func() string { return "2024-01-01" },
+		LevelNames: customLevelNames,
+	}
+
+	fmtr := NewTextFormatter(cfg)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	log.Debug("debug message")
+	output := buf.String()
+	assert.Contains(t, output, "2024-01-01", "Should use custom timestamp")
+	assert.Contains(t, output, "TRACE", "Should use custom level name")
 }

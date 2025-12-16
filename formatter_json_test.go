@@ -134,3 +134,51 @@ func TestJsonFormatter_ErrorWrapping(t *testing.T) {
 	errList := m.StringList("error")
 	assert.EqualValues(t, errMsgs, errList)
 }
+
+func TestJsonFormatter_MarshalError(t *testing.T) {
+	buf := &bytes.Buffer{}
+	fmtr := NewJsonFormatter(DefaultConfig)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	// Create a circular reference that will cause marshal errors
+	type circular struct {
+		Self *circular
+	}
+	circ := &circular{}
+	circ.Self = circ
+
+	// This should not panic, but should log an error message instead
+	log.With("circular", circ).Info("test with circular reference")
+
+	// Verify we got an error message instead of a panic
+	m := Map(buf)
+	assert.Equal(t, "[LOG ERROR: failed to marshal entry]", m["msg"])
+	assert.Equal(t, "error", m["level"])
+}
+
+func TestJsonFormatter_CustomConfig(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	customLevelNames := map[Level]string{
+		LevelDebug: "trace",
+		LevelInfo:  "information",
+		LevelError: "err",
+	}
+
+	cfg := Config{
+		Timestamp:  func() string { return "2024-01-01" },
+		LevelNames: customLevelNames,
+	}
+
+	fmtr := NewJsonFormatter(cfg)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	log.Debug("debug message")
+	m := Map(buf)
+	assert.Equal(t, "trace", m["level"], "Should use custom level name")
+	assert.Equal(t, "2024-01-01", m["timestamp"], "Should use custom timestamp")
+
+	log.Info("info message")
+	m = Map(buf)
+	assert.Equal(t, "information", m["level"], "Should use custom level name")
+}

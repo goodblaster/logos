@@ -10,17 +10,21 @@ type contextKey string
 const CtxKeyLogger contextKey = "logos.logger"
 
 // FromContext retrieves a Logger from the context. If a logger is found in the context,
-// it returns that logger. Otherwise, it returns the DefaultLogger.
+// it returns that logger. Otherwise, it returns the default logger.
 func FromContext(ctx context.Context) Logger {
 	if ctx == nil {
-		return DefaultLogger
+		return getDefaultLogger()
 	}
 
-	if ctxLog, ok := ctx.Value(CtxKeyLogger).(Logger); ok && ctxLog.level != nil {
-		return ctxLog
+	if ctxLog, ok := ctx.Value(CtxKeyLogger).(Logger); ok {
+		// Validate that the logger has all required fields
+		if ctxLog.level != nil && ctxLog.formatter != nil && ctxLog.writer != nil {
+			return ctxLog
+		}
 	}
 
-	return DefaultLogger
+	// Fall back to default logger
+	return getDefaultLogger()
 }
 
 // WithLogger returns a new context with the provided logger stored in it.

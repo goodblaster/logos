@@ -11,13 +11,14 @@ type Fields = map[string]any
 
 // Logger is the primary struct for logging messages with optional fields and errors.
 type Logger struct {
-	level      *Level
-	formatter  Formatter
-	writer     io.Writer
-	sync       *sync.Mutex
-	fields     Fields
-	error      error
-	teeLoggers []Logger
+	level       *Level
+	formatter   Formatter
+	writer      io.Writer
+	sync        *sync.Mutex
+	fields      Fields
+	error       error
+	teeLoggers  []Logger
+	errorHandler func(error) // Called when write errors occur
 }
 
 // NewLogger creates a new Logger instance with the given level, formatter, and output writer.
@@ -32,24 +33,88 @@ func NewLogger(level Level, formatter Formatter, writer io.Writer) Logger {
 }
 
 // SetLevel sets the logging level of the logger.
+// Deprecated: Use WithLevel() instead for immutable logger creation.
 func (logger Logger) SetLevel(level Level) {
 	*logger.level = level
 }
 
-// Copy creates a deep copy of the logger, duplicating any fields and tee loggers.
+// GetLevel returns the current logging level.
+func (logger Logger) GetLevel() Level {
+	if logger.level == nil {
+		return LevelInfo // Safe default
+	}
+	return *logger.level
+}
+
+// GetFields returns a copy of the logger's fields.
+// The returned map is independent and modifications won't affect the logger.
+func (logger Logger) GetFields() Fields {
+	if logger.fields == nil {
+		return nil
+	}
+	fieldsCopy := make(Fields, len(logger.fields))
+	for k, v := range logger.fields {
+		fieldsCopy[k] = v
+	}
+	return fieldsCopy
+}
+
+// GetError returns the logger's associated error.
+func (logger Logger) GetError() error {
+	return logger.error
+}
+
+// GetTeeCount returns the number of tee loggers attached to this logger.
+func (logger Logger) GetTeeCount() int {
+	return len(logger.teeLoggers)
+}
+
+// IsLevelEnabled returns true if the logger would log at the given level.
+// This is useful for avoiding expensive computations when the log level is not enabled.
+func (logger Logger) IsLevelEnabled(level Level) bool {
+	if logger.level == nil {
+		return false
+	}
+	return *logger.level <= level
+}
+
+// WithLevel returns a new Logger with the specified logging level.
+// Unlike SetLevel(), this method returns a new logger instance with an independent level,
+// maintaining immutability and preventing shared state issues.
+func (logger Logger) WithLevel(level Level) Logger {
+	newLogger := logger.Copy()
+	newLevel := level
+	newLogger.level = &newLevel // New pointer, not shared
+	return newLogger
+}
+
+// Copy creates a deep copy of the logger with an independent level.
+// The copied logger shares the same mutex and writer as the original (for thread-safety),
+// but has independent level, fields, and error state.
 func (logger Logger) Copy() Logger {
 	logger.sync.Lock()
 	defer logger.sync.Unlock()
 
-	newLogger := logger
+	// Create new logger with independent level but shared mutex and writer
+	newLevel := *logger.level
+	newLogger := Logger{
+		level:        &newLevel,           // New level pointer - independent
+		formatter:    logger.formatter,    // Formatters are immutable, safe to share
+		writer:       logger.writer,        // Writers are external, shared by design
+		sync:         logger.sync,          // Shared mutex - protects the shared writer
+		error:        logger.error,         // Errors are immutable, safe to share
+		errorHandler: logger.errorHandler, // Error handler function, safe to share
+	}
 
-	if newLogger.fields != nil {
-		newLogger.fields = make(Fields)
+	// Deep copy fields
+	if logger.fields != nil {
+		newLogger.fields = make(Fields, len(logger.fields))
 		for key, value := range logger.fields {
 			newLogger.fields[key] = value
 		}
 	}
 
+	// Deep copy tee loggers
 	if len(logger.teeLoggers) > 0 {
 		newLogger.teeLoggers = make([]Logger, len(logger.teeLoggers))
 		for i, teeLogger := range logger.teeLoggers {
@@ -81,20 +146,29 @@ func (logger Logger) WithFields(fields Fields) Logger {
 }
 
 // WithError returns a new Logger with an associated error.
+// If the logger already has an error, it will be silently replaced.
 func (logger Logger) WithError(err error) Logger {
 	newLogger := logger.Copy()
-	if newLogger.error != nil {
-		logger.With("old_error", newLogger.error).
-			With("new_error", err).
-			Error("overwriting old error with new error")
-	}
-
 	newLogger.error = err
+	return newLogger
+}
+
+// WithErrorHandler returns a new Logger with the specified error handler.
+// The error handler is called whenever a write error occurs during logging.
+// If handler is nil, write errors will be silently ignored.
+func (logger Logger) WithErrorHandler(handler func(error)) Logger {
+	newLogger := logger.Copy()
+	newLogger.errorHandler = handler
 	return newLogger
 }
 
 // Log logs a message at the specified level.
 func (logger Logger) Log(level Level, a ...any) {
+	// Defensive nil checks
+	if logger.level == nil || logger.formatter == nil || logger.writer == nil {
+		return
+	}
+
 	msg := fmt.Sprint(a...)
 	entry := Entry{
 		Fields: logger.fields,
@@ -105,7 +179,15 @@ func (logger Logger) Log(level Level, a ...any) {
 	// Write to main writer if level is enabled
 	if *logger.level <= level {
 		line := logger.formatter.Format(level, entry)
-		_, _ = fmt.Fprintln(logger.writer, line)
+		// Lock to prevent concurrent writes to the same writer (e.g., bytes.Buffer)
+		logger.sync.Lock()
+		_, err := fmt.Fprintln(logger.writer, line)
+		logger.sync.Unlock()
+
+		// Call error handler if write failed and handler is set
+		if err != nil && logger.errorHandler != nil {
+			logger.errorHandler(err)
+		}
 	}
 
 	// Always call Log on each tee logger (they handle their own level checking and formatting)
@@ -116,6 +198,11 @@ func (logger Logger) Log(level Level, a ...any) {
 
 // Logf logs a formatted message at the specified level.
 func (logger Logger) Logf(level Level, format string, args ...any) {
+	// Defensive nil checks
+	if logger.level == nil || logger.formatter == nil || logger.writer == nil {
+		return
+	}
+
 	msg := fmt.Sprintf(format, args...)
 	entry := Entry{
 		Fields: logger.fields,
@@ -126,7 +213,15 @@ func (logger Logger) Logf(level Level, format string, args ...any) {
 	// Write to main writer if level is enabled
 	if *logger.level <= level {
 		line := logger.formatter.Format(level, entry)
-		_, _ = fmt.Fprintln(logger.writer, line)
+		// Lock to prevent concurrent writes to the same writer (e.g., bytes.Buffer)
+		logger.sync.Lock()
+		_, err := fmt.Fprintln(logger.writer, line)
+		logger.sync.Unlock()
+
+		// Call error handler if write failed and handler is set
+		if err != nil && logger.errorHandler != nil {
+			logger.errorHandler(err)
+		}
 	}
 
 	// Always call Logf on each tee logger (they handle their own level checking and formatting)
@@ -137,11 +232,17 @@ func (logger Logger) Logf(level Level, format string, args ...any) {
 
 // LogFunc evaluates the message-producing function only if at least one logger (main or tee) has the level enabled.
 func (logger Logger) LogFunc(level Level, msg func() string) {
+	// Defensive nil check
+	if logger.level == nil {
+		return
+	}
+
 	// Check if main logger or any tee logger would accept this level
 	shouldLog := *logger.level <= level
 	if !shouldLog {
 		for _, teeLogger := range logger.teeLoggers {
-			if *teeLogger.level <= level {
+			// Nil check for tee logger level
+			if teeLogger.level != nil && *teeLogger.level <= level {
 				shouldLog = true
 				break
 			}
@@ -157,11 +258,17 @@ func (logger Logger) LogFunc(level Level, msg func() string) {
 
 // LogIf calls the provided function if at least one logger (main or tee) has the level enabled.
 func (logger Logger) LogIf(level Level, log func()) {
+	// Defensive nil check
+	if logger.level == nil {
+		return
+	}
+
 	// Check if main logger or any tee logger would accept this level
 	shouldLog := *logger.level <= level
 	if !shouldLog {
 		for _, teeLogger := range logger.teeLoggers {
-			if *teeLogger.level <= level {
+			// Nil check for tee logger level
+			if teeLogger.level != nil && *teeLogger.level <= level {
 				shouldLog = true
 				break
 			}

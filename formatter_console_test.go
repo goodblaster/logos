@@ -1,6 +1,7 @@
 package logos
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
@@ -124,4 +125,76 @@ func Test_consoleFormatter_Format(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConsoleFormatter_MarshalError(t *testing.T) {
+	buf := &bytes.Buffer{}
+	fmtr := NewConsoleFormatter(DefaultConfig)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	// Create a circular reference that will cause marshal errors
+	type circular struct {
+		Self *circular
+	}
+	circ := &circular{}
+	circ.Self = circ
+
+	// This should not panic, but should include marshal_error indicator
+	log.With("circular", circ).Info("test message")
+
+	output := buf.String()
+	assert.Contains(t, output, "circular=<marshal_error>", "Should indicate marshal error")
+	assert.Contains(t, output, "test message", "Should still include the message")
+}
+
+func TestConsoleFormatter_CustomConfig(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	customLevelNames := map[Level]string{
+		LevelDebug: "TRACE",
+		LevelInfo:  "INFO",
+	}
+
+	customLevelColors := map[Level]Color{
+		LevelDebug: ColorTextPurple,
+		LevelInfo:  ColorTextYellow,
+	}
+
+	cfg := Config{
+		Timestamp:   func() string { return "2024-01-01" },
+		LevelNames:  customLevelNames,
+		LevelColors: customLevelColors,
+	}
+
+	fmtr := NewConsoleFormatter(cfg)
+	log := NewLogger(LevelDebug, fmtr, buf)
+
+	log.Debug("debug message")
+	output := buf.String()
+	assert.Contains(t, output, "2024-01-01", "Should use custom timestamp")
+	assert.Contains(t, output, "TRACE", "Should use custom level name")
+	assert.Contains(t, output, ColorTextPurple, "Should use custom level color")
+}
+
+func TestConsoleFormatter_MissingLevelColor(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	// Create a custom level
+	const CustomLevel Level = 99
+
+	// Config without color for CustomLevel
+	cfg := DefaultConfig
+
+	fmtr := NewConsoleFormatter(cfg)
+	log := NewLogger(CustomLevel, fmtr, buf)
+
+	// Should not panic, should use default color
+	assert.NotPanics(t, func() {
+		log.Log(CustomLevel, "custom level message")
+	})
+
+	output := buf.String()
+	assert.Contains(t, output, "custom level message")
+	// Should use ColorReset as fallback
+	assert.Contains(t, output, ColorReset)
 }

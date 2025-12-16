@@ -3,10 +3,12 @@ package logos
 import (
 	"os"
 	"strings"
+	"sync"
 )
 
-// DefaultLogger is the global logger used by package-level log functions.
-var DefaultLogger Logger
+// defaultLogger is the global logger used by package-level log functions.
+var defaultLogger Logger
+var defaultLoggerMu sync.RWMutex
 
 // init sets the default logger to output debug-level logs to the console.
 func init() {
@@ -27,115 +29,133 @@ func init() {
 		formatter = ConsoleFormatter()
 	}
 
-	DefaultLogger = NewLogger(level, formatter, os.Stdout)
+	defaultLogger = NewLogger(level, formatter, os.Stdout)
 }
 
-// SetDefaultLogger overrides the global DefaultLogger with a new one.
+// SetDefaultLogger overrides the global default logger with a new one.
+// This function is thread-safe.
 func SetDefaultLogger(logger Logger) {
-	DefaultLogger = logger
+	defaultLoggerMu.Lock()
+	defer defaultLoggerMu.Unlock()
+	defaultLogger = logger
 }
 
-// SetLevel sets the logging level of the DefaultLogger.
+// getDefaultLogger returns a copy of the default logger.
+// This function is thread-safe.
+func getDefaultLogger() Logger {
+	defaultLoggerMu.RLock()
+	defer defaultLoggerMu.RUnlock()
+	return defaultLogger
+}
+
+// SetLevel sets the logging level of the default logger.
 func SetLevel(level Level) {
-	DefaultLogger.SetLevel(level)
+	defaultLoggerMu.Lock()
+	defer defaultLoggerMu.Unlock()
+	defaultLogger.SetLevel(level)
 }
 
-// With returns a copy of the DefaultLogger with an additional field.
+// IsLevelEnabled returns true if the default logger would log at the given level.
+func IsLevelEnabled(level Level) bool {
+	return getDefaultLogger().IsLevelEnabled(level)
+}
+
+// With returns a copy of the default logger with an additional field.
 func With(key string, value any) Logger {
-	return DefaultLogger.With(key, value)
+	return getDefaultLogger().With(key, value)
 }
 
-// WithError returns a copy of the DefaultLogger with an associated error.
+// WithError returns a copy of the default logger with an associated error.
 func WithError(err error) Logger {
-	return DefaultLogger.WithError(err)
+	return getDefaultLogger().WithError(err)
 }
 
-// WithFields returns a copy of the DefaultLogger with additional fields.
+// WithFields returns a copy of the default logger with additional fields.
 func WithFields(fields map[string]any) Logger {
-	return DefaultLogger.WithFields(fields)
+	return getDefaultLogger().WithFields(fields)
 }
 
-// Tee adds one or more loggers as tee destinations to the DefaultLogger.
+// Tee adds one or more loggers as tee destinations to the default logger.
 func Tee(loggers ...Logger) Logger {
-	return DefaultLogger.Tee(loggers...)
+	return getDefaultLogger().Tee(loggers...)
 }
 
-// Log logs a message at the specified level using the DefaultLogger.
+// Log logs a message at the specified level using the default logger.
 func Log(level Level, a ...any) {
-	DefaultLogger.Log(level, a...)
+	getDefaultLogger().Log(level, a...)
 }
 
-// Logf logs a formatted message at the specified level using the DefaultLogger.
+// Logf logs a formatted message at the specified level using the default logger.
 func Logf(level Level, format string, args ...any) {
-	DefaultLogger.Logf(level, format, args...)
+	getDefaultLogger().Logf(level, format, args...)
 }
 
-// LogFunc logs a lazily-evaluated message using the DefaultLogger if the level is enabled.
+// LogFunc logs a lazily-evaluated message using the default logger if the level is enabled.
 func LogFunc(level Level, msg func() string) {
-	DefaultLogger.LogFunc(level, msg)
+	getDefaultLogger().LogFunc(level, msg)
 }
 
-// LogIf executes a function if the level is enabled using the DefaultLogger.
+// LogIf executes a function if the level is enabled using the default logger.
 func LogIf(level Level, log func()) {
-	DefaultLogger.LogIf(level, log)
+	getDefaultLogger().LogIf(level, log)
 }
 
-// Print logs a message at the print level using the DefaultLogger.
+// Print logs a message at the print level using the default logger.
 func Print(a ...any) {
-	DefaultLogger.Print(a...)
+	getDefaultLogger().Print(a...)
 }
 
-// Printf logs a formatted message at the print level using the DefaultLogger.
+// Printf logs a formatted message at the print level using the default logger.
 func Printf(format string, args ...any) {
-	DefaultLogger.Printf(format, args...)
+	getDefaultLogger().Printf(format, args...)
 }
 
-// Debug logs a message at the debug level using the DefaultLogger.
+// Debug logs a message at the debug level using the default logger.
 func Debug(s ...any) {
-	DefaultLogger.Debug(s...)
+	getDefaultLogger().Debug(s...)
 }
 
-// Debugf logs a formatted message at the debug level using the DefaultLogger.
+// Debugf logs a formatted message at the debug level using the default logger.
 func Debugf(format string, args ...any) {
-	DefaultLogger.Debugf(format, args...)
+	getDefaultLogger().Debugf(format, args...)
 }
 
-// Info logs a message at the info level using the DefaultLogger.
+// Info logs a message at the info level using the default logger.
 func Info(a ...any) {
-	DefaultLogger.Info(a...)
+	getDefaultLogger().Info(a...)
 }
 
-// Infof logs a formatted message at the info level using the DefaultLogger.
+// Infof logs a formatted message at the info level using the default logger.
 func Infof(format string, args ...any) {
-	DefaultLogger.Infof(format, args...)
+	getDefaultLogger().Infof(format, args...)
 }
 
-// Warn logs a message at the warn level using the DefaultLogger.
+// Warn logs a message at the warn level using the default logger.
 func Warn(a ...any) {
-	DefaultLogger.Warn(a...)
+	getDefaultLogger().Warn(a...)
 }
 
-// Warnf logs a formatted message at the warn level using the DefaultLogger.
+// Warnf logs a formatted message at the warn level using the default logger.
 func Warnf(format string, args ...any) {
-	DefaultLogger.Warnf(format, args...)
+	getDefaultLogger().Warnf(format, args...)
 }
 
-// Error logs a message at the error level using the DefaultLogger.
+// Error logs a message at the error level using the default logger.
 func Error(a ...any) {
-	DefaultLogger.Error(a...)
+	getDefaultLogger().Error(a...)
 }
 
-// Errorf logs a formatted message at the error level using the DefaultLogger.
+// Errorf logs a formatted message at the error level using the default logger.
 func Errorf(format string, args ...any) {
-	DefaultLogger.Errorf(format, args...)
+	getDefaultLogger().Errorf(format, args...)
 }
 
-// Fatal logs a message at the fatal level using the DefaultLogger and panics.
+// Fatal logs a message at the fatal level using the default logger and panics.
 func Fatal(a ...any) {
-	DefaultLogger.Fatal(a...)
+	getDefaultLogger().Fatal(a...)
 }
 
-// Fatalf logs a formatted message at the fatal level using the DefaultLogger and panics.
+// Fatalf logs a formatted message at the fatal level using the default logger and panics.
 func Fatalf(format string, args ...any) {
-	DefaultLogger.Fatalf(format, args...)
+	getDefaultLogger().Fatalf(format, args...)
 }
