@@ -11,12 +11,13 @@ type Fields = map[string]any
 
 // Logger is the primary struct for logging messages with optional fields and errors.
 type Logger struct {
-	level     *Level
-	formatter Formatter
-	writer    io.Writer
-	sync      *sync.Mutex
-	fields    Fields
-	error     error
+	level      *Level
+	formatter  Formatter
+	writer     io.Writer
+	sync       *sync.Mutex
+	fields     Fields
+	error      error
+	teeLoggers []Logger
 }
 
 // NewLogger creates a new Logger instance with the given level, formatter, and output writer.
@@ -35,7 +36,7 @@ func (logger Logger) SetLevel(level Level) {
 	*logger.level = level
 }
 
-// Copy creates a deep copy of the logger, duplicating any fields.
+// Copy creates a deep copy of the logger, duplicating any fields and tee loggers.
 func (logger Logger) Copy() Logger {
 	logger.sync.Lock()
 	defer logger.sync.Unlock()
@@ -46,6 +47,13 @@ func (logger Logger) Copy() Logger {
 		newLogger.fields = make(Fields)
 		for key, value := range logger.fields {
 			newLogger.fields[key] = value
+		}
+	}
+
+	if len(logger.teeLoggers) > 0 {
+		newLogger.teeLoggers = make([]Logger, len(logger.teeLoggers))
+		for i, teeLogger := range logger.teeLoggers {
+			newLogger.teeLoggers[i] = teeLogger.Copy()
 		}
 	}
 
@@ -87,45 +95,83 @@ func (logger Logger) WithError(err error) Logger {
 
 // Log logs a message at the specified level.
 func (logger Logger) Log(level Level, a ...any) {
-	if *logger.level > level {
-		return
-	}
 	msg := fmt.Sprint(a...)
-	line := logger.formatter.Format(level, Entry{
+	entry := Entry{
 		Fields: logger.fields,
 		Msg:    msg,
 		Error:  logger.error,
-	})
-	_, _ = fmt.Fprintln(logger.writer, line)
+	}
+
+	// Write to main writer if level is enabled
+	if *logger.level <= level {
+		line := logger.formatter.Format(level, entry)
+		_, _ = fmt.Fprintln(logger.writer, line)
+	}
+
+	// Always call Log on each tee logger (they handle their own level checking and formatting)
+	for _, teeLogger := range logger.teeLoggers {
+		teeLogger.Log(level, a...)
+	}
 }
 
 // Logf logs a formatted message at the specified level.
 func (logger Logger) Logf(level Level, format string, args ...any) {
-	if *logger.level > level {
-		return
-	}
 	msg := fmt.Sprintf(format, args...)
-	line := logger.formatter.Format(level, Entry{
+	entry := Entry{
 		Fields: logger.fields,
 		Msg:    msg,
 		Error:  logger.error,
-	})
-	_, _ = fmt.Fprintln(logger.writer, line)
+	}
+
+	// Write to main writer if level is enabled
+	if *logger.level <= level {
+		line := logger.formatter.Format(level, entry)
+		_, _ = fmt.Fprintln(logger.writer, line)
+	}
+
+	// Always call Logf on each tee logger (they handle their own level checking and formatting)
+	for _, teeLogger := range logger.teeLoggers {
+		teeLogger.Logf(level, format, args...)
+	}
 }
 
-// LogFunc evaluates the message-producing function only if the log level is enabled.
+// LogFunc evaluates the message-producing function only if at least one logger (main or tee) has the level enabled.
 func (logger Logger) LogFunc(level Level, msg func() string) {
-	if *logger.level > level {
+	// Check if main logger or any tee logger would accept this level
+	shouldLog := *logger.level <= level
+	if !shouldLog {
+		for _, teeLogger := range logger.teeLoggers {
+			if *teeLogger.level <= level {
+				shouldLog = true
+				break
+			}
+		}
+	}
+
+	if !shouldLog {
 		return
 	}
+
 	logger.Log(level, msg())
 }
 
-// LogIf calls the provided function if the log level is enabled.
+// LogIf calls the provided function if at least one logger (main or tee) has the level enabled.
 func (logger Logger) LogIf(level Level, log func()) {
-	if *logger.level > level {
+	// Check if main logger or any tee logger would accept this level
+	shouldLog := *logger.level <= level
+	if !shouldLog {
+		for _, teeLogger := range logger.teeLoggers {
+			if *teeLogger.level <= level {
+				shouldLog = true
+				break
+			}
+		}
+	}
+
+	if !shouldLog {
 		return
 	}
+
 	log()
 }
 

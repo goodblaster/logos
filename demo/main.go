@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -84,6 +86,75 @@ func main() {
 	// Custom formatter demo.
 	custom := logos.NewLogger(LevelApple, customFormatter{}, os.Stdout)
 	custom.With("key1", "value1").With("key2", "value2").Log(LevelCherry, "This is a custom message.")
+
+	// Context logging demo.
+	logos.Print("")
+	logos.Print("CONTEXT LOGGING ----------")
+
+	// Create a logger with request-specific fields
+	requestLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout).
+		With("request_id", "req-123").
+		With("user_id", "user-456").
+		With("ip", "192.168.1.1")
+
+	// Store logger in context for request lifecycle
+	ctx := logos.WithLogger(context.Background(), requestLogger)
+
+	// Simulate request handling - logger is retrieved from context
+	handleRequest(ctx)
+	processPayment(ctx)
+
+	// If no logger in context, returns DefaultLogger
+	emptyCtx := context.Background()
+	logos.FromContext(emptyCtx).Info("Using default logger (no context logger)")
+
+	// Tee logging demo - write to multiple destinations simultaneously.
+	logos.Print("")
+	logos.Print("TEE LOGGING ----------")
+
+	// Create separate loggers for different destinations with different levels
+	consoleBuf := &bytes.Buffer{}
+	fileBuf := &bytes.Buffer{}
+
+	consoleLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), consoleBuf)
+	fileLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), fileBuf)
+
+	// Create a main logger and tee the other loggers to it
+	mainLogger := logos.NewLogger(logos.LevelInfo, logos.ConsoleFormatter(), os.Stdout)
+	teeLogger := mainLogger.Tee(consoleLogger, fileLogger)
+
+	teeLogger.Info("This message goes to stdout, consoleBuf (Info), and fileBuf (Debug)")
+	teeLogger.With("component", "auth").Warn("Warning also goes to all destinations")
+
+	// Debug message: only goes to fileBuf (Debug level), not stdout or consoleBuf (Info level)
+	teeLogger.Debug("This debug message only goes to fileBuf")
+
+	// Verify tee logging worked
+	fmt.Printf("\nConsole buffer received: %s\n", consoleBuf.String())
+	fmt.Printf("File buffer received: %s\n", fileBuf.String())
+
+	// Package-level tee logging
+	logos.Print("")
+	logos.Print("PACKAGE-LEVEL TEE LOGGING ----------")
+	teeBuf := &bytes.Buffer{}
+	teeBufLogger := logos.NewLogger(logos.LevelDebug, logos.JSONFormatter(), teeBuf)
+	teeLog := logos.Tee(teeBufLogger)
+	teeLog.Info("This goes to both DefaultLogger's writer and teeBuf")
+}
+
+// handleRequest simulates a request handler that uses logger from context
+func handleRequest(ctx context.Context) {
+	logger := logos.FromContext(ctx)
+	logger.Info("Processing request")
+	logger.With("action", "validate").Info("Validating input")
+	logger.With("action", "authorize").Info("Checking permissions")
+}
+
+// processPayment simulates another function that uses logger from context
+func processPayment(ctx context.Context) {
+	logger := logos.FromContext(ctx)
+	logger.With("action", "payment").Info("Processing payment")
+	logger.With("amount", 99.99).Info("Payment successful")
 }
 
 func expensiveOperation() string {
